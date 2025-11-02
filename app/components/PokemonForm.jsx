@@ -20,30 +20,39 @@ import {
   useToast,
   Progress,
   HStack,
+  Image,
+  Icon,
+  IconButton,
 } from '@chakra-ui/react'
+import { CloseIcon, AttachmentIcon } from '@chakra-ui/icons'
 
 /**
- * PokemonForm - A 3-step form to create a custom Pokémon
- * Step 1: Enter name
- * Step 2: Select type
- * Step 3: Review and submit
+ * PokemonForm - A 4-step form to create a custom Pokémon
+ * Step 1: Upload image (optional)
+ * Step 2: Enter name
+ * Step 3: Select type
+ * Step 4: Review and submit
  */
 export default function PokemonForm() {
   // STATE MANAGEMENT
   // ================
 
-  // Track which step we're currently on (1, 2, or 3)
+  // Track which step we're currently on (1, 2, 3, or 4)
   const [currentStep, setCurrentStep] = useState(1)
 
   // Store all form data in a single object
   // This makes it easy to manage and submit all data together
   const [formData, setFormData] = useState({
+    image: null,   // Pokémon's image (stored as Data URL/base64 string)
     name: '',      // Pokémon's name
     type: '',      // Pokémon's type (Water, Fire, etc.)
   })
 
   // Track if form has been successfully submitted
   const [isSubmitted, setIsSubmitted] = useState(false)
+
+  // Track drag-and-drop state for visual feedback
+  const [isDragging, setIsDragging] = useState(false)
 
   // Chakra UI's toast for showing success messages
   const toast = useToast()
@@ -69,7 +78,10 @@ export default function PokemonForm() {
    */
   const validateStep = () => {
     if (currentStep === 1) {
-      // Step 1: Name must be at least 2 characters
+      // Step 1: Image upload is optional, always valid
+      return true
+    } else if (currentStep === 2) {
+      // Step 2: Name must be at least 2 characters
       if (formData.name.trim().length < 2) {
         toast({
           title: 'Invalid name',
@@ -80,8 +92,8 @@ export default function PokemonForm() {
         })
         return false
       }
-    } else if (currentStep === 2) {
-      // Step 2: A type must be selected
+    } else if (currentStep === 3) {
+      // Step 3: A type must be selected
       if (!formData.type) {
         toast({
           title: 'No type selected',
@@ -160,13 +172,241 @@ export default function PokemonForm() {
     })
   }
 
+  // IMAGE UPLOAD HANDLERS
+  // =====================
+
+  /**
+   * Process the selected/dropped image file
+   * Converts it to base64 Data URL for preview and storage
+   * @param {File} file - The image file to process
+   */
+  const processImageFile = (file) => {
+    // Validate file type - only accept images
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file (JPG, PNG, GIF, etc.).',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024 // 5MB in bytes
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image smaller than 5MB.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+      return
+    }
+
+    // Use FileReader to convert image to base64 Data URL
+    // This allows us to store and preview the image without a server
+    const reader = new FileReader()
+
+    reader.onload = (e) => {
+      // e.target.result contains the base64 string
+      setFormData({
+        ...formData,
+        image: e.target.result  // Store the base64 image data
+      })
+
+      toast({
+        title: 'Image uploaded!',
+        description: 'Your Pokémon image has been added.',
+        status: 'success',
+        duration: 2000,
+        isClosable: true,
+      })
+    }
+
+    // Start reading the file as a Data URL (base64)
+    reader.readAsDataURL(file)
+  }
+
+  /**
+   * Handle file selection from the file input
+   * @param {Event} e - Input change event
+   */
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      processImageFile(file)
+    }
+  }
+
+  /**
+   * Handle drag over event - needed to allow drop
+   * @param {DragEvent} e - Drag event
+   */
+  const handleDragOver = (e) => {
+    e.preventDefault() // Required to allow drop
+    setIsDragging(true)
+  }
+
+  /**
+   * Handle drag leave event - remove visual feedback
+   * @param {DragEvent} e - Drag event
+   */
+  const handleDragLeave = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  /**
+   * Handle file drop event
+   * @param {DragEvent} e - Drop event
+   */
+  const handleImageDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    // Get the first file from the dropped files
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      processImageFile(file)
+    }
+  }
+
+  /**
+   * Remove the uploaded image
+   */
+  const handleRemoveImage = () => {
+    setFormData({
+      ...formData,
+      image: null  // Clear the image
+    })
+
+    toast({
+      title: 'Image removed',
+      description: 'You can upload a different image if you like.',
+      status: 'info',
+      duration: 2000,
+      isClosable: true,
+    })
+  }
+
   // STEP RENDERING FUNCTIONS
   // ========================
 
   /**
-   * Render Step 1: Name Input
+   * Render Step 1: Image Upload (Drag & Drop)
    */
   const renderStep1 = () => (
+    <VStack spacing={6} width="100%">
+      <Heading size="lg" color="purple.700">
+        Upload a Pokémon Image
+      </Heading>
+
+      <Text color="gray.600" textAlign="center">
+        Upload an image of your Pokémon (optional)
+      </Text>
+
+      {/* Image preview if uploaded */}
+      {formData.image ? (
+        <Box position="relative" width="100%">
+          <Image
+            src={formData.image}
+            alt="Pokémon preview"
+            borderRadius="lg"
+            maxH="300px"
+            objectFit="contain"
+            mx="auto"
+            boxShadow="lg"
+          />
+
+          {/* Remove button */}
+          <IconButton
+            icon={<CloseIcon />}
+            position="absolute"
+            top={2}
+            right={2}
+            colorScheme="red"
+            size="sm"
+            onClick={handleRemoveImage}
+            aria-label="Remove image"
+            borderRadius="full"
+          />
+        </Box>
+      ) : (
+        /* Drag and drop zone */
+        <Box
+          width="100%"
+          height="250px"
+          border="2px dashed"
+          borderColor={isDragging ? 'purple.500' : 'gray.300'}
+          borderRadius="lg"
+          bg={isDragging ? 'purple.50' : 'gray.50'}
+          display="flex"
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
+          cursor="pointer"
+          transition="all 0.2s"
+          _hover={{
+            borderColor: 'purple.400',
+            bg: 'purple.50',
+          }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleImageDrop}
+          onClick={() => document.getElementById('file-input').click()}
+        >
+          <Icon as={AttachmentIcon} boxSize={12} color="purple.400" mb={4} />
+          <Text fontSize="lg" fontWeight="bold" color="gray.700" mb={2}>
+            Drop your image here
+          </Text>
+          <Text fontSize="sm" color="gray.500">
+            or click to browse
+          </Text>
+          <Text fontSize="xs" color="gray.400" mt={2}>
+            Supported: JPG, PNG, GIF (max 5MB)
+          </Text>
+
+          {/* Hidden file input */}
+          <input
+            id="file-input"
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageSelect}
+          />
+        </Box>
+      )}
+
+      {/* Navigation buttons */}
+      <HStack spacing={4} width="100%">
+        <Button
+          variant="outline"
+          colorScheme="purple"
+          size="lg"
+          width="50%"
+          onClick={handleNext}
+        >
+          Skip
+        </Button>
+        <Button
+          colorScheme="purple"
+          size="lg"
+          width="50%"
+          onClick={handleNext}
+        >
+          Next
+        </Button>
+      </HStack>
+    </VStack>
+  )
+
+  /**
+   * Render Step 2: Name Input
+   */
+  const renderStep2 = () => (
     <VStack spacing={6} width="100%">
       <Heading size="lg" color="purple.700">
         What's your Pokémon's name?
@@ -196,9 +436,9 @@ export default function PokemonForm() {
   )
 
   /**
-   * Render Step 2: Type Selection
+   * Render Step 3: Type Selection
    */
-  const renderStep2 = () => (
+  const renderStep3 = () => (
     <VStack spacing={6} width="100%">
       <Heading size="lg" color="purple.700">
         Choose a Type
@@ -247,9 +487,9 @@ export default function PokemonForm() {
   )
 
   /**
-   * Render Step 3: Review and Submit
+   * Render Step 4: Review and Submit
    */
-  const renderStep3 = () => (
+  const renderStep4 = () => (
     <VStack spacing={6} width="100%">
       <Heading size="lg" color="purple.700">
         Review Your Pokémon
@@ -264,6 +504,27 @@ export default function PokemonForm() {
         boxShadow="md"
       >
         <VStack align="start" spacing={4}>
+          {/* Image Preview */}
+          <Box width="100%">
+            <Text fontWeight="bold" color="gray.600" fontSize="sm" mb={2}>
+              IMAGE
+            </Text>
+            {formData.image ? (
+              <Image
+                src={formData.image}
+                alt={formData.name}
+                borderRadius="md"
+                maxH="200px"
+                objectFit="contain"
+                boxShadow="sm"
+              />
+            ) : (
+              <Text fontSize="md" color="gray.400" fontStyle="italic">
+                No image uploaded
+              </Text>
+            )}
+          </Box>
+
           <Box>
             <Text fontWeight="bold" color="gray.600" fontSize="sm">
               NAME
@@ -340,10 +601,10 @@ export default function PokemonForm() {
       {/* Progress Indicator */}
       <VStack spacing={6} mb={8}>
         <Text fontSize="sm" color="gray.600" fontWeight="bold">
-          STEP {currentStep} OF 3
+          STEP {currentStep} OF 4
         </Text>
         <Progress
-          value={(currentStep / 3) * 100}
+          value={(currentStep / 4) * 100}
           size="sm"
           colorScheme="purple"
           width="100%"
@@ -360,6 +621,7 @@ export default function PokemonForm() {
         {currentStep === 1 && renderStep1()}
         {currentStep === 2 && renderStep2()}
         {currentStep === 3 && renderStep3()}
+        {currentStep === 4 && renderStep4()}
       </Box>
     </Box>
   )
