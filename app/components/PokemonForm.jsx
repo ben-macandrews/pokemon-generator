@@ -23,6 +23,7 @@ import {
   Image,
   Icon,
   IconButton,
+  Spinner,
 } from '@chakra-ui/react'
 import { CloseIcon, AttachmentIcon } from '@chakra-ui/icons'
 
@@ -50,6 +51,9 @@ export default function PokemonForm() {
 
   // Track if form has been successfully submitted
   const [isSubmitted, setIsSubmitted] = useState(false)
+
+  // Track loading state while saving to database
+  const [isLoading, setIsLoading] = useState(false)
 
   // Track drag-and-drop state for visual feedback
   const [isDragging, setIsDragging] = useState(false)
@@ -129,22 +133,103 @@ export default function PokemonForm() {
 
   /**
    * Handle form submission (final step)
+   * Saves the Pokémon to MongoDB database via API route
    */
-  const handleSubmit = () => {
-    // Log the data to console (we'll add database later)
-    console.log('Pokémon Created:', formData)
+  const handleSubmit = async () => {
+    // Set loading state to true (disables button, shows spinner)
+    setIsLoading(true)
 
-    // Show success message
+    try {
+      // STEP 1: Prepare the data to send to the server
+      // ===============================================
+      // We send the form data as JSON to our API route
+      console.log('📤 Submitting Pokémon to database:', formData)
+
+      // STEP 2: Send POST request to our API route
+      // ===========================================
+      // fetch() is the browser's built-in function to make HTTP requests
+      // We're calling our own API route at /api/pokemon
+      const response = await fetch('/api/pokemon', {
+        method: 'POST', // POST method = creating new data
+        headers: {
+          'Content-Type': 'application/json', // Tell server we're sending JSON
+        },
+        body: JSON.stringify(formData), // Convert JavaScript object to JSON string
+      })
+
+      // STEP 3: Parse the JSON response from the server
+      // ================================================
+      const data = await response.json()
+
+      // STEP 4: Check if the request was successful
+      // ============================================
+      if (!response.ok) {
+        // response.ok is false for status codes 400-599 (errors)
+        throw new Error(data.error || 'Failed to save Pokémon')
+      }
+
+      // STEP 5: Success! Show success message
+      // ======================================
+      console.log('✅ Pokémon saved successfully:', data)
+
+      toast({
+        title: 'Success!',
+        description: `Your Pokémon "${formData.name}" has been saved to the database!`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      })
+
+      // Mark as submitted to show success UI
+      setIsSubmitted(true)
+
+    } catch (error) {
+      // ERROR HANDLING
+      // ==============
+      // If anything goes wrong (network error, server error, etc.)
+      // we catch it here and show a friendly error message
+
+      console.error('❌ Error saving Pokémon:', error)
+
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save Pokémon. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      })
+    } finally {
+      // FINALLY BLOCK
+      // =============
+      // This runs whether the request succeeded or failed
+      // We use it to turn off the loading spinner
+      setIsLoading(false)
+    }
+  }
+
+  /**
+   * Reset the form to create another Pokémon
+   * Clears all data and goes back to step 1
+   */
+  const handleCreateAnother = () => {
+    // Reset all form data to initial state
+    setFormData({
+      image: null,
+      name: '',
+      type: '',
+    })
+    // Reset submission state
+    setIsSubmitted(false)
+    // Go back to step 1
+    setCurrentStep(1)
+
     toast({
-      title: 'Success!',
-      description: `Your Pokémon "${formData.name}" has been created!`,
-      status: 'success',
-      duration: 5000,
+      title: 'Ready for a new Pokémon!',
+      description: 'Fill out the form to create another Pokémon.',
+      status: 'info',
+      duration: 3000,
       isClosable: true,
     })
-
-    // Mark as submitted to show success message
-    setIsSubmitted(true)
   }
 
   // INPUT CHANGE HANDLERS
@@ -556,32 +641,49 @@ export default function PokemonForm() {
           borderColor="green.500"
         >
           <Text color="green.800" fontWeight="bold">
-            ✓ Pokémon created successfully! Check the console for details.
+            ✓ Pokémon saved to database successfully!
           </Text>
         </Box>
       )}
 
-      <HStack spacing={4} width="100%">
+      {/* Navigation buttons */}
+      {!isSubmitted ? (
+        // Before submission: Show Back and Submit buttons
+        <HStack spacing={4} width="100%">
+          <Button
+            variant="outline"
+            colorScheme="purple"
+            size="lg"
+            width="50%"
+            onClick={handleBack}
+            isDisabled={isLoading}
+          >
+            Back
+          </Button>
+          <Button
+            colorScheme="green"
+            size="lg"
+            width="50%"
+            onClick={handleSubmit}
+            isDisabled={isLoading}
+            isLoading={isLoading}
+            loadingText="Saving..."
+            spinner={<Spinner size="sm" />}
+          >
+            Save to Database
+          </Button>
+        </HStack>
+      ) : (
+        // After successful submission: Show Create Another button
         <Button
-          variant="outline"
           colorScheme="purple"
           size="lg"
-          width="50%"
-          onClick={handleBack}
-          isDisabled={isSubmitted}
+          width="100%"
+          onClick={handleCreateAnother}
         >
-          Back
+          Create Another Pokémon
         </Button>
-        <Button
-          colorScheme="green"
-          size="lg"
-          width="50%"
-          onClick={handleSubmit}
-          isDisabled={isSubmitted}
-        >
-          {isSubmitted ? 'Submitted!' : 'Submit'}
-        </Button>
-      </HStack>
+      )}
     </VStack>
   )
 
