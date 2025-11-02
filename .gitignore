@@ -25,7 +25,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+# IMPORTANT: These files contain secrets (database passwords, API keys, etc.)
+# They should NEVER be committed to Git for security reasons!
+# Each developer and deployment environment has their own .env.local file
 .env*.local
+.env
 
 # vercel
 .vercel
